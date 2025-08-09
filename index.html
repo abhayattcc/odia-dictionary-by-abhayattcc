@@ -826,7 +826,7 @@
         return results.slice(0, 10);
     }
 
-    async function handleInput(input = document.getElementById('inputWord').value.trim(), fromClick = false) {
+    async function handleInput(input = document.getElementById('inputWord').value.trim(), fromClick = false, fromLongPress = false) {
         const suggestionsSection = document.getElementById('suggestionsSection');
         const suggestionsUl = document.getElementById('suggestions');
         const resultSection = document.getElementById('resultSection');
@@ -850,7 +850,7 @@
         const results = await searchDictionary(input);
         lastSearchResults = results[0] || { englishWord: '', odiaWord: input, odiaSpelling: '', odiaMeaning: '', hindiWord: '', language: detectLanguage(input) };
 
-        if (results.length > 0) {
+        if (results.length > 0 && (fromClick || fromLongPress)) {
             requestAnimationFrame(() => {
                 let resultHtml = `<strong>${input}</strong>:<br>`;
                 if (results.length > 1) {
@@ -887,7 +887,7 @@
                 resultDiv.classList.add('active');
                 saveWordButton.style.display = 'none';
             });
-        } else {
+        } else if (fromClick || fromLongPress) {
             requestAnimationFrame(() => {
                 resultDiv.innerHTML = `No results found for <strong>${input}</strong>`;
                 resultSection.classList.add('active');
@@ -895,6 +895,18 @@
                 saveWordButton.style.display = 'block';
                 if (!fromClick) {
                     displaySuggestions(input);
+                }
+            });
+        } else {
+            requestAnimationFrame(() => {
+                resultDiv.innerHTML = '';
+                resultSection.classList.remove('active');
+                suggestionsUl.innerHTML = '';
+                suggestionsSection.classList.remove('active');
+                saveWordButton.style.display = 'none';
+                if (suggestionsTimer) {
+                    clearTimeout(suggestionsTimer);
+                    suggestionsTimer = null;
                 }
             });
         }
@@ -1039,25 +1051,6 @@
         const inputWord = document.getElementById('inputWord');
         let lastInput = '';
 
-        const debouncedHandleInput = debounce((input) => {
-            const isAlphabetic = /^[a-zA-Z\u0B00-\u0B7F\u0900-\u097F]+$/.test(input);
-            if (isAlphabetic && input.length >= 2) {
-                handleInput(input);
-            } else {
-                requestAnimationFrame(() => {
-                    document.getElementById('suggestions').innerHTML = '';
-                    document.getElementById('suggestionsSection').classList.remove('active');
-                    document.getElementById('resultSection').classList.remove('active');
-                    document.getElementById('result').innerHTML = '';
-                    document.getElementById('saveWordButton').style.display = 'none';
-                    if (suggestionsTimer) {
-                        clearTimeout(suggestionsTimer);
-                        suggestionsTimer = null;
-                    }
-                });
-            }
-        }, 300);
-
         const debouncedDisplaySuggestions = debounce((input) => {
             const isAlphabetic = /^[a-zA-Z\u0B00-\u0B7F\u0900-\u097F]+$/.test(input);
             if (isAlphabetic && input.length >= 2) {
@@ -1072,7 +1065,7 @@
                     }
                 });
             }
-        }, 400);
+        }, 300);
 
         inputWord.addEventListener('input', () => {
             const input = inputWord.value.trim();
@@ -1111,7 +1104,6 @@
                     clearTimeout(suggestionsTimer);
                     suggestionsTimer = null;
                 }
-                debouncedHandleInput(input);
                 debouncedDisplaySuggestions(input);
             });
         });
@@ -1125,7 +1117,19 @@
                     clearTimeout(suggestionsTimer);
                     suggestionsTimer = null;
                 }
-                handleInput(inputWord.value.trim());
+                handleInput(inputWord.value.trim(), true);
+            } else if (event.key === 'Backspace' || event.key === 'Delete') {
+                requestAnimationFrame(() => {
+                    document.getElementById('suggestions').innerHTML = '';
+                    document.getElementById('suggestionsSection').classList.remove('active');
+                    document.getElementById('resultSection').classList.remove('active');
+                    document.getElementById('result').innerHTML = '';
+                    document.getElementById('saveWordButton').style.display = 'none';
+                    if (suggestionsTimer) {
+                        clearTimeout(suggestionsTimer);
+                        suggestionsTimer = null;
+                    }
+                });
             }
         });
 
