@@ -7,7 +7,6 @@
     <script src="https://unpkg.com/tesseract.js@4.1.0/dist/tesseract.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js"></script>
     <style>
         :root {
             --primary-color: #1a73e8;
@@ -215,7 +214,7 @@
             flex-wrap: wrap;
             gap: clamp(0.5rem, 1.5vw, 0.75rem);
             align-items: center;
-            justify-content: space-space-between;
+            justify-content: space-between;
         }
 
         .language-selection, .voice-selection {
@@ -248,13 +247,12 @@
             padding: clamp(1rem, 3vw, 1.5rem);
             border-radius: var(--border-radius);
             box-shadow: var(--shadow);
-            height: 80vh;
-            overflow: hidden;
             position: relative;
+            height: 80vh;
         }
 
         #textContent {
-            font-size: clamp(0.8rem, 2.2vw, 1rem);
+            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
             line-height: 1.8;
             color: #1a1a1a;
             background: rgba(255, 255, 255, 0.95);
@@ -262,25 +260,10 @@
             border-radius: 8px;
             white-space: pre-wrap;
             word-wrap: break-word;
-            transform-origin: top left;
+            transform-origin: 0 0;
             height: 100%;
             overflow-y: auto;
             scroll-behavior: smooth;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-        }
-
-        @media (max-width: 768px) {
-            .reader-section {
-                height: 50vh;
-                overflow: hidden;
-            }
-        }
-
-        #textContent p {
-            margin-bottom: clamp(0.5rem, 1.5vw, 0.75rem);
         }
 
         #textContent::-webkit-scrollbar {
@@ -301,7 +284,7 @@
             background: #e91e63;
         }
 
-        button, .upload-button, .export-button, .ocr-button, .page-button, .go-button, .play-pause-button, .speak-button, .stop-button, .save-word-button, .share-button {
+        button, .upload-button, .export-button, .ocr-button, .page-button, .go-button, .play-pause-button, .speak-button, .stop-button, .save-word-button {
             padding: 0;
             width: var(--button-size);
             height: var(--button-size);
@@ -317,12 +300,12 @@
             justify-content: center;
         }
 
-        button:hover, .upload-button:hover, .export-button:hover, .ocr-button:hover, .page-button:hover, .go-button:hover, .play-pause-button:hover, .speak-button:hover, .stop-button:hover, .save-word-button:hover, .share-button:hover {
+        button:hover, .upload-button:hover, .export-button:hover, .ocr-button:hover, .page-button:hover, .go-button:hover, .play-pause-button:hover, .speak-button:hover, .stop-button:hover, .save-word-button:hover {
             background: #f1f3f4;
             transform: translateY(-2px);
         }
 
-        button:disabled, .ocr-button:disabled, .page-button:disabled, .speak-button:disabled, .stop-button:disabled, .save-word-button:disabled, .share-button:disabled {
+        button:disabled, .ocr-button:disabled, .page-button:disabled, .speak-button:disabled, .stop-button:disabled, .save-word-button:disabled {
             border-color: #ccc;
             color: #ccc;
             cursor: not-allowed;
@@ -408,8 +391,6 @@
             .reader-section {
                 padding: clamp(0.75rem, 2.5vw, 1rem);
                 height: 50vh;
-                overflow-x: auto;
-                overflow-y: auto;
             }
 
             .controls-section {
@@ -422,7 +403,7 @@
                 min-width: clamp(60px, 18vw, 100px);
             }
 
-            button, .upload-button, .export-button, .ocr-button, .page-button, .go-button, .play-pause-button, .speak-button, .stop-button, .save-word-button, .share-button {
+            button, .upload-button, .export-button, .ocr-button, .page-button, .go-button, .play-pause-button, .speak-button, .stop-button, .save-word-button {
                 width: clamp(1.8rem, 6vw, 2rem);
                 height: clamp(1.8rem, 6vw, 2rem);
                 font-size: clamp(0.7rem, 2vw, 0.9rem);
@@ -450,6 +431,8 @@
 <body>
     <div class="container" id="mainContainer">
         <div class="inner-container">
+            <div class="েই
+
             <div class="dictionary-section" id="dictionarySection">
                 <input type="text" id="inputWord" class="dictionary-input" placeholder="Search for a word...">
                 <button class="speak-button" onclick="speakDictionaryResult()">🔊</button>
@@ -494,7 +477,6 @@
                 <button class="go-button" onclick="goToPage()">🏃</button>
                 <button class="play-pause-button" onclick="togglePlayPause()">🗣️</button>
                 <button class="stop-button" onclick="stopAllAudio()">🛑</button>
-                <button class="share-button" onclick="shareText()">📤</button>
             </div>
             <div class="reader-section" id="readerSection">
                 <div id="textContent"></div>
@@ -504,7 +486,10 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        let dbEnglishOdia, dbOdia, dbEnglishHindi;
+        let englishOdiaDictionary = {};
+        let odiaDictionary = {};
+        let englishHindiDictionary = {};
+        let dictionaryIndex = new Map();
         let pages = [];
         let currentPage = 0;
         let originalFileName = 'example.txt';
@@ -512,6 +497,8 @@
         let isReadingAloud = false;
         let isPaused = false;
         let zoomLevel = 1;
+        let suggestionsTimer = null;
+        let isSuggestionHiddenPermanently = false;
         let isSpeaking = false;
 
         let lastSearchResults = {
@@ -531,17 +518,38 @@
             };
         }
 
-        async function loadDatabase(url) {
-            try {
-                const response = await fetch(url);
-                const arrayBuffer = await response.arrayBuffer();
-                const decompressed = pako.inflate(new Uint8Array(arrayBuffer));
-                const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` });
-                return new SQL.Database(decompressed);
-            } catch (error) {
-                console.error(`Error loading database from ${url}:`, error);
-                throw error;
-            }
+        async function openIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('dictionary-store', 1);
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    db.createObjectStore('dictionaries', { keyPath: 'id' });
+                };
+                request.onsuccess = (event) => resolve(event.target.result);
+                request.onerror = (event) => reject(event.target.error);
+            });
+        }
+
+        async function loadFromIndexedDB(id) {
+            const db = await openIndexedDB();
+            return new Promise((resolve) => {
+                const transaction = db.transaction(['dictionaries'], 'readonly');
+                const store = transaction.objectStore('dictionaries');
+                const request = store.get(id);
+                request.onsuccess = () => resolve(request.result ? request.result.data : null);
+                request.onerror = () => resolve(null);
+            });
+        }
+
+        async function saveToIndexedDB(id, data) {
+            const db = await openIndexedDB();
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(['dictionaries'], 'readwrite');
+                const store = transaction.objectStore('dictionaries');
+                const request = store.put({ id, data });
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
         }
 
         async function cacheTesseractResources() {
@@ -577,19 +585,117 @@
             mainContainer.style.opacity = '1';
 
             const dictionaryUrls = {
-                englishOdia: 'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_odia.db.gz',
-                odia: 'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/odia_meaning.db.gz',
-                englishHindi: 'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_hindi.db.gz'
+                englishOdia: 'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_odia.csv.gz',
+                odia: 'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/odia_meaning.csv.gz',
+                englishHindi: 'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_hindi.csv.gz'
             };
+
+            async function loadFromCache(url) {
+                if ('caches' in window) {
+                    const cache = await caches.open('dictionary-cache');
+                    const cachedResponse = await cache.match(url);
+                    if (cachedResponse) {
+                        const arrayBuffer = await cachedResponse.arrayBuffer();
+                        return pako.inflate(new Uint8Array(arrayBuffer), { to: 'string' });
+                    }
+                    if (navigator.onLine) {
+                        const response = await fetch(url);
+                        const arrayBuffer = await response.arrayBuffer();
+                        const decompressed = pako.inflate(new Uint8Array(arrayBuffer), { to: 'string' });
+                        await cache.put(url, new Response(arrayBuffer));
+                        return decompressed;
+                    }
+                }
+                return null;
+            }
+
+            async function processDictionary(id, url, dictionary, processData) {
+                let data = await loadFromIndexedDB(id);
+                if (!data) {
+                    data = await loadFromCache(url);
+                    if (data) {
+                        await saveToIndexedDB(id, data);
+                    } else {
+                        processingStatus.textContent = `Failed to load ${id} dictionary`;
+                        return false;
+                    }
+                }
+                processData(data);
+                return true;
+            }
+
+            function buildDictionaryIndex() {
+                dictionaryIndex = new Map();
+                Object.entries(englishOdiaDictionary).forEach(([key, value]) => {
+                    dictionaryIndex.set(key, { dict: 'englishOdia', type: 'english', value: value.english });
+                    dictionaryIndex.set(key + '_odia', { dict: 'englishOdia', type: 'odia', value: value.odia });
+                });
+                Object.entries(odiaDictionary).forEach(([key, value]) => {
+                    dictionaryIndex.set(key, { dict: 'odia', type: 'odia', value: value.odia });
+                    dictionaryIndex.set(key + '_spelling', { dict: 'odia', type: 'odia_spelling', value: value.odia_spelling });
+                });
+                Object.entries(englishHindiDictionary).forEach(([key, value]) => {
+                    dictionaryIndex.set(key, { dict: 'englishHindi', type: 'english', value: value.english });
+                    dictionaryIndex.set(key + '_hindi', { dict: 'englishHindi', type: 'hindi', value: value.hindi });
+                });
+            }
 
             try {
                 processingStatus.textContent = 'Please wait...';
                 await cacheTesseractResources();
 
-                dbEnglishOdia = await loadDatabase(dictionaryUrls.englishOdia);
-                dbOdia = await loadDatabase(dictionaryUrls.odia);
-                dbEnglishHindi = await loadDatabase(dictionaryUrls.englishHindi);
+                await processDictionary('englishOdia', dictionaryUrls.englishOdia, englishOdiaDictionary, (data) => {
+                    const lines = data.trim().split('\n').slice(1);
+                    lines.forEach(line => {
+                        const [english, odia] = line.split(',');
+                        const englishWord = (english || '').trim();
+                        const odiaWord = (odia || '').trim();
+                        if (englishWord) {
+                            englishOdiaDictionary[englishWord.toLowerCase()] = { english: englishWord, odia: odiaWord };
+                            englishOdiaDictionary[`${englishWord.toLowerCase()} xyz`] = { english: englishWord, odia: odiaWord };
+                        }
+                        if (odiaWord) {
+                            englishOdiaDictionary[odiaWord.toLowerCase()] = { english: englishWord, odia: odiaWord };
+                            englishOdiaDictionary[`${odiaWord.toLowerCase()} ଟିଏ`] = { english: englishWord, odia: odiaWord };
+                        }
+                    });
+                });
 
+                await processDictionary('odia', dictionaryUrls.odia, odiaDictionary, (data) => {
+                    const lines = data.trim().split('\n').slice(1);
+                    lines.forEach(line => {
+                        const [odia, odia_spelling, odia_meaning] = line.split(',');
+                        const odiaWord = (odia || '').trim();
+                        const spellingWord = (odia_spelling || '').trim();
+                        if (odiaWord) {
+                            odiaDictionary[odiaWord.toLowerCase()] = { odia: odiaWord, odia_spelling: spellingWord, odia_meaning: odia_meaning || '' };
+                            odiaDictionary[`${odiaWord.toLowerCase()} ଟିଏ`] = { odia: odiaWord, odia_spelling: spellingWord, odia_meaning: odia_meaning || '' };
+                        }
+                        if (spellingWord) {
+                            odiaDictionary[spellingWord.toLowerCase()] = { odia: odiaWord, odia_spelling: spellingWord, odia_meaning: odia_meaning || '' };
+                            odiaDictionary[`${spellingWord.toLowerCase()} tie`] = { odia: odiaWord, odia_spelling: spellingWord, odia_meaning: odia_meaning || '' };
+                        }
+                    });
+                });
+
+                await processDictionary('englishHindi', dictionaryUrls.englishHindi, englishHindiDictionary, (data) => {
+                    const lines = data.trim().split('\n').slice(1);
+                    lines.forEach(line => {
+                        const [english, hindi] = line.split(',');
+                        const englishWord = (english || '').trim();
+                        const hindiWord = (hindi || '').trim();
+                        if (englishWord) {
+                            englishHindiDictionary[englishWord.toLowerCase()] = { english: englishWord, hindi: hindiWord };
+                            englishHindiDictionary[`${englishWord.toLowerCase()} xyz`] = { english: englishWord, hindi: hindiWord };
+                        }
+                        if (hindiWord) {
+                            englishHindiDictionary[hindiWord.toLowerCase()] = { english: englishWord, hindi: hindiWord };
+                            englishHindiDictionary[`${hindiWord.toLowerCase()} xyz`] = { english: englishWord, hindi: hindiWord };
+                        }
+                    });
+                });
+
+                buildDictionaryIndex();
                 initSuggestions();
                 initTextContent();
                 processingStatus.textContent = 'Successfully loaded dictionaries';
@@ -608,16 +714,13 @@
             initClipboardListener();
         }
 
-        function normalizeOdiaText(text) {
-            return text.replace(/\u0B5C/g, '\u0B21').replace(/\u0B21/g, '\u0B21');
-        }
-
         function initTouchZoom() {
+            const readerSection = document.getElementById('readerSection');
             const textContent = document.getElementById('textContent');
             let startDistance = 0;
             let currentZoom = 1;
 
-            textContent.addEventListener('touchstart', (e) => {
+            readerSection.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
                     e.preventDefault();
                     const touch1 = e.touches[0];
@@ -629,7 +732,7 @@
                 }
             });
 
-            textContent.addEventListener('touchmove', (e) => {
+            readerSection.addEventListener('touchmove', (e) => {
                 if (e.touches.length === 2) {
                     e.preventDefault();
                     const touch1 = e.touches[0];
@@ -645,220 +748,117 @@
                 }
             });
 
-            textContent.addEventListener('touchend', (e) => {
+            readerSection.addEventListener('touchend', (e) => {
                 if (e.touches.length < 2) {
                     startDistance = 0;
                 }
             });
-
-            textContent.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const delta = e.deltaY < 0 ? 0.1 : -0.1;
-                currentZoom = Math.min(Math.max(currentZoom + delta, 0.5), 3);
-                textContent.style.transform = `scale(${currentZoom})`;
-            });
         }
 
         async function getSuggestions(input) {
-            if (!input || input.length < 1) return [];
-            const normalizedInput = normalizeOdiaText(input.trim().toLowerCase());
-            const suggestions = [];
-            const seenWords = new Set();
+            if (!input || input.length < 2) return [];
+            const lowerInput = input.toLowerCase().trim();
+            const exactMatches = [];
+            const exactPlusOthers = [];
+            const othersPlusExact = [];
 
-            const queries = [
-                { db: dbEnglishOdia, sql: `SELECT English FROM dictionary WHERE LOWER(English) LIKE ?`, params: [`${normalizedInput}%`], field: 'English' },
-                { db: dbOdia, sql: `SELECT odia FROM dictionary WHERE LOWER(odia) LIKE ?`, params: [`${normalizedInput}%`], field: 'odia' },
-                { db: dbOdia, sql: `SELECT odia_spelling FROM dictionary WHERE LOWER(odia_spelling) LIKE ?`, params: [`${normalizedInput}%`], field: 'odia_spelling' },
-                { db: dbOdia, sql: `SELECT odia_meaning FROM dictionary WHERE LOWER(odia_meaning) LIKE ?`, params: [`${normalizedInput}%`], field: 'odia_meaning' },
-                { db: dbEnglishHindi, sql: `SELECT hindi FROM dictionary WHERE LOWER(hindi) LIKE ?`, params: [`${normalizedInput}%`], field: 'hindi' }
-            ];
-
-            try {
-                for (const query of queries) {
-                    const results = query.db.exec(query.sql, query.params)[0]?.values || [];
-                    results.forEach(row => {
-                        const word = row[0];
-                        if (!word || seenWords.has(word.toLowerCase())) return;
-                        suggestions.push(word);
-                        seenWords.add(word.toLowerCase());
-                    });
+            for (const [key, entry] of dictionaryIndex) {
+                const value = entry.value;
+                if (!value) continue;
+                const lowerKey = key.toLowerCase();
+                const lowerValue = value.toLowerCase();
+                
+                if (lowerValue === lowerInput) {
+                    exactMatches.push(value);
+                } else if (lowerKey.includes(lowerInput + ' ') || lowerKey.includes(' ' + lowerInput)) {
+                    if (lowerKey.startsWith(lowerInput + ' ')) {
+                        exactPlusOthers.push(value);
+                    } else if (lowerKey.endsWith(' ' + lowerInput)) {
+                        othersPlusExact.push(value);
+                    }
                 }
-            } catch (error) {
-                console.error('Error querying suggestions:', error);
-                return [];
             }
 
-            return suggestions.slice(0, 5);
+            return [
+                ...new Set([
+                    ...exactMatches,
+                    ...exactPlusOthers,
+                    ...othersPlusExact
+                ])
+            ].slice(0, 10);
         }
 
         async function searchDictionary(input) {
             if (!input) return [];
-            const trimmedInput = input.trim();
-            const normalizedInput = normalizeOdiaText(trimmedInput);
-            const resultsMap = new Map();
+            const lowerInput = input.toLowerCase().trim();
+            const results = [];
 
-            try {
-                // Exact match for odia_spelling
-                const odiaSpellingQuery = `SELECT odia, odia_spelling, odia_meaning FROM dictionary WHERE TRIM(LOWER(odia_spelling)) = LOWER(?)`;
-                const odiaSpellingResults = dbOdia.exec(odiaSpellingQuery, [normalizedInput])[0]?.values || [];
-                for (const row of odiaSpellingResults) {
-                    const [odia, odia_spelling, odia_meaning] = row;
-                    const englishResult = dbEnglishOdia.exec(
-                        `SELECT English FROM dictionary WHERE TRIM(LOWER(odia)) = LOWER(?)`,
-                        [normalizeOdiaText(odia)]
-                    )[0]?.values[0]?.[0] || '';
-                    const hindiResult = englishResult ? dbEnglishHindi.exec(
-                        `SELECT hindi FROM dictionary WHERE TRIM(LOWER(English)) = LOWER(?)`,
-                        [englishResult]
-                    )[0]?.values[0]?.[0] || '' : '';
-                    const key = odia_spelling || odia;
-                    const existing = resultsMap.get(key) || {
-                        englishWord: new Set(),
-                        odiaWord: odia,
-                        odiaSpelling: odia_spelling,
-                        odiaMeaning: new Set(),
-                        hindiWord: new Set(),
-                        language: detectLanguage(input)
-                    };
-                    if (englishResult) existing.englishWord.add(englishResult);
-                    if (odia_meaning) existing.odiaMeaning.add(odia_meaning);
-                    if (hindiResult) existing.hindiWord.add(hindiResult);
-                    resultsMap.set(key, existing);
-                }
-
-                // Exact match for odia_meaning
-                const odiaMeaningQuery = `SELECT odia, odia_spelling, odia_meaning FROM dictionary WHERE TRIM(LOWER(odia_meaning)) = LOWER(?)`;
-                const odiaMeaningResults = dbOdia.exec(odiaMeaningQuery, [normalizedInput])[0]?.values || [];
-                for (const row of odiaMeaningResults) {
-                    const [odia, odia_spelling, odia_meaning] = row;
-                    const englishResult = dbEnglishOdia.exec(
-                        `SELECT English FROM dictionary WHERE TRIM(LOWER(odia)) = LOWER(?)`,
-                        [normalizeOdiaText(odia)]
-                    )[0]?.values[0]?.[0] || '';
-                    const hindiResult = englishResult ? dbEnglishHindi.exec(
-                        `SELECT hindi FROM dictionary WHERE TRIM(LOWER(English)) = LOWER(?)`,
-                        [englishResult]
-                    )[0]?.values[0]?.[0] || '' : '';
-                    const key = odia_spelling || odia;
-                    const existing = resultsMap.get(key) || {
-                        englishWord: new Set(),
-                        odiaWord: odia,
-                        odiaSpelling: odia_spelling,
-                        odiaMeaning: new Set(),
-                        hindiWord: new Set(),
-                        language: detectLanguage(input)
-                    };
-                    if (englishResult) existing.englishWord.add(englishResult);
-                    if (odia_meaning) existing.odiaMeaning.add(odia_meaning);
-                    if (hindiResult) existing.hindiWord.add(hindiResult);
-                    resultsMap.set(key, existing);
-                }
-
-                // Exact match for English
-                const englishQuery = `SELECT English, odia FROM dictionary WHERE TRIM(LOWER(English)) = LOWER(?)`;
-                const englishResults = dbEnglishOdia.exec(englishQuery, [trimmedInput])[0]?.values || [];
-                for (const row of englishResults) {
-                    const [english, odia] = row;
-                    const odiaDetails = dbOdia.exec(
-                        `SELECT odia, odia_spelling, odia_meaning FROM dictionary WHERE TRIM(LOWER(odia)) = LOWER(?)`,
-                        [normalizeOdiaText(odia)]
-                    )[0]?.values[0] || [odia, '', ''];
-                    const hindiResult = dbEnglishHindi.exec(
-                        `SELECT hindi FROM dictionary WHERE TRIM(LOWER(English)) = LOWER(?)`,
-                        [english]
-                    )[0]?.values[0]?.[0] || '';
-                    const key = odiaDetails[1] || odia;
-                    const existing = resultsMap.get(key) || {
-                        englishWord: new Set(),
-                        odiaWord: odiaDetails[0],
-                        odiaSpelling: odiaDetails[1],
-                        odiaMeaning: new Set(),
-                        hindiWord: new Set(),
-                        language: detectLanguage(input)
-                    };
-                    existing.englishWord.add(english);
-                    if (odiaDetails[2]) existing.odiaMeaning.add(odiaDetails[2]);
-                    if (hindiResult) existing.hindiWord.add(hindiResult);
-                    resultsMap.set(key, existing);
-                }
-
-                // Exact match for odia
-                const odiaQuery = `SELECT odia, odia_spelling, odia_meaning FROM dictionary WHERE TRIM(LOWER(odia)) = LOWER(?)`;
-                const odiaResults = dbOdia.exec(odiaQuery, [normalizedInput])[0]?.values || [];
-                for (const row of odiaResults) {
-                    const [odia, odia_spelling, odia_meaning] = row;
-                    const englishResult = dbEnglishOdia.exec(
-                        `SELECT English FROM dictionary WHERE TRIM(LOWER(odia)) = LOWER(?)`,
-                        [normalizeOdiaText(odia)]
-                    )[0]?.values[0]?.[0] || '';
-                    const hindiResult = englishResult ? dbEnglishHindi.exec(
-                        `SELECT hindi FROM dictionary WHERE TRIM(LOWER(English)) = LOWER(?)`,
-                        [englishResult]
-                    )[0]?.values[0]?.[0] || '' : '';
-                    const key = odia_spelling || odia;
-                    const existing = resultsMap.get(key) || {
-                        englishWord: new Set(),
-                        odiaWord: odia,
-                        odiaSpelling: odia_spelling,
-                        odiaMeaning: new Set(),
-                        hindiWord: new Set(),
-                        language: detectLanguage(input)
-                    };
-                    if (englishResult) existing.englishWord.add(englishResult);
-                    if (odia_meaning) existing.odiaMeaning.add(odia_meaning);
-                    if (hindiResult) existing.hindiWord.add(hindiResult);
-                    resultsMap.set(key, existing);
-                }
-
-                // Exact match for hindi
-                const hindiQuery = `SELECT English, hindi FROM dictionary WHERE TRIM(LOWER(hindi)) = LOWER(?)`;
-                const hindiResults = dbEnglishHindi.exec(hindiQuery, [normalizedInput])[0]?.values || [];
-                for (const row of hindiResults) {
-                    const [english, hindi] = row;
-                    const odiaResult = dbEnglishOdia.exec(
-                        `SELECT odia FROM dictionary WHERE TRIM(LOWER(English)) = LOWER(?)`,
-                        [english]
-                    )[0]?.values[0]?.[0] || '';
-                    const odiaDetails = odiaResult ? dbOdia.exec(
-                        `SELECT odia, odia_spelling, odia_meaning FROM dictionary WHERE TRIM(LOWER(odia)) = LOWER(?)`,
-                        [normalizeOdiaText(odiaResult)]
-                    )[0]?.values[0] || [odiaResult, '', ''] : ['', '', ''];
-                    const key = odiaDetails[1] || odiaDetails[0];
-                    const existing = resultsMap.get(key) || {
-                        englishWord: new Set(),
-                        odiaWord: odiaDetails[0],
-                        odiaSpelling: odiaDetails[1],
-                        odiaMeaning: new Set(),
-                        hindiWord: new Set(),
-                        language: detectLanguage(input)
-                    };
-                    existing.englishWord.add(english);
-                    if (odiaDetails[2]) existing.odiaMeaning.add(odiaDetails[2]);
-                    existing.hindiWord.add(hindi);
-                    resultsMap.set(key, existing);
-                }
-            } catch (error) {
-                console.error('Error searching dictionary:', error);
-                return [];
+            if (lowerInput in odiaDictionary && !lowerInput.endsWith(' ଟିଏ') && !lowerInput.endsWith(' tie')) {
+                const entry = odiaDictionary[lowerInput];
+                const odiaWord = entry.odia;
+                const odiaSpelling = entry.odia_spelling;
+                const odiaMeaning = entry.odia_meaning;
+                const englishEntry = Object.values(englishOdiaDictionary).find(e => 
+                    e.odia.toLowerCase() === lowerInput || e.english.toLowerCase() === lowerInput);
+                const englishWord = englishEntry ? englishEntry.english : '';
+                const hindiEntry = Object.values(englishHindiDictionary).find(h => 
+                    h.english.toLowerCase() === lowerInput || h.hindi.toLowerCase() === lowerInput);
+                const hindiWord = hindiEntry ? hindiEntry.hindi : '';
+                results.push({
+                    englishWord,
+                    odiaWord,
+                    odiaSpelling,
+                    odiaMeaning,
+                    hindiWord,
+                    language: detectLanguage(input)
+                });
             }
 
-            return Array.from(resultsMap.values()).map(result => ({
-                englishWord: Array.from(result.englishWord).join(', ') || 'N/A',
-                odiaWord: result.odiaWord || 'N/A',
-                odiaSpelling: result.odiaSpelling || 'N/A',
-                odiaMeaning: Array.from(result.odiaMeaning).join(', ') || 'N/A',
-                hindiWord: Array.from(result.hindiWord).join(', ') || 'N/A',
-                language: result.language
-            }));
+            if (lowerInput in englishOdiaDictionary && !lowerInput.endsWith(' xyz')) {
+                const entry = englishOdiaDictionary[lowerInput];
+                const odiaWord = entry.odia;
+                const englishWord = entry.english;
+                const odiaEntry = Object.values(odiaDictionary).find(o => 
+                    o.odia.toLowerCase() === odiaWord.toLowerCase());
+                const hindiEntry = Object.values(englishHindiDictionary).find(h => 
+                    h.english.toLowerCase() === lowerInput);
+                results.push({
+                    englishWord,
+                    odiaWord,
+                    odiaSpelling: odiaEntry ? odiaEntry.odia_spelling : '',
+                    odiaMeaning: odiaEntry ? odiaEntry.odia_meaning : '',
+                    hindiWord: hindiEntry ? hindiEntry.hindi : '',
+                    language: 'english'
+                });
+            }
+
+            if (lowerInput in englishHindiDictionary && !lowerInput.endsWith(' xyz')) {
+                const entry = englishHindiDictionary[lowerInput];
+                const englishWord = entry.english;
+                const hindiWord = entry.hindi;
+                const odiaEntry = Object.values(englishOdiaDictionary).find(o => 
+                    o.english.toLowerCase() === englishWord.toLowerCase());
+                const odiaDictEntry = odiaEntry ? Object.values(odiaDictionary).find(o => 
+                    o.odia.toLowerCase() === odiaEntry.odia.toLowerCase()) : null;
+                results.push({
+                    englishWord,
+                    odiaWord: odiaEntry ? odiaEntry.odia : '',
+                    odiaSpelling: odiaDictEntry ? odiaDictEntry.odia_spelling : '',
+                    odiaMeaning: odiaDictEntry ? odiaDictEntry.odia_meaning : '',
+                    hindiWord,
+                    language: 'hindi'
+                });
+            }
+
+            return results.slice(0, 10);
         }
 
-        async function handleInput(input) {
+        async function handleInput(input = document.getElementById('inputWord').value.trim(), fromCopy = false, fromClick = false) {
             const suggestionsSection = document.getElementById('suggestionsSection');
             const suggestionsUl = document.getElementById('suggestions');
             const resultSection = document.getElementById('resultSection');
             const resultDiv = document.getElementById('result');
             const saveWordButton = document.getElementById('saveWordButton');
-            const inputWord = document.getElementById('inputWord');
 
             if (!input) {
                 suggestionsUl.innerHTML = '';
@@ -867,92 +867,199 @@
                 resultSection.classList.remove('active');
                 saveWordButton.style.display = 'none';
                 lastSearchResults = { englishWord: '', odiaWord: '', odiaSpelling: '', odiaMeaning: '', hindiWord: '', language: '' };
-                inputWord.value = '';
+                if (suggestionsTimer) {
+                    clearTimeout(suggestionsTimer);
+                    suggestionsTimer = null;
+                }
+                isSuggestionHiddenPermanently = false;
                 return;
             }
 
-            inputWord.value = input;
             const results = await searchDictionary(input);
             lastSearchResults = results[0] || { englishWord: '', odiaWord: input, odiaSpelling: '', odiaMeaning: '', hindiWord: '', language: detectLanguage(input) };
+            const isExactMatch = results.length > 0 && (
+                input.toLowerCase().trim() === lastSearchResults.englishWord.toLowerCase().trim() ||
+                input.toLowerCase().trim() === lastSearchResults.odiaWord.toLowerCase().trim() ||
+                input.toLowerCase().trim() === lastSearchResults.hindiWord.toLowerCase().trim()
+            );
 
-            requestAnimationFrame(() => {
-                let resultHtml = `<strong>${input}</strong>:<br>`;
-                if (results.length > 0) {
-                    resultHtml += '<ul>';
-                    results.forEach(r => {
+            if (results.length > 0 && (fromCopy || event?.key === 'Enter' || fromClick)) {
+                requestAnimationFrame(() => {
+                    let resultHtml = `<strong>${input}</strong>:<br>`;
+                    if (results.length > 1) {
+                        resultHtml += '<ul>';
+                        results.forEach(r => {
+                            resultHtml += `
+                                <li>
+                                    English: ${r.englishWord || 'N/A'}<br>
+                                    Odia: ${r.odiaWord || 'N/A'}<br>
+                                    Odia Spelling: ${r.odiaSpelling || 'N/A'}<br>
+                                    Hindi: ${r.hindiWord || 'N/A'}<br>
+                                    Odia Meaning: ${r.odiaMeaning || 'N/A'}
+                                </li>`;
+                        });
+                        resultHtml += '</ul>';
+                    } else {
+                        const r = results[0];
                         resultHtml += `
-                            <li>
-                                English: ${r.englishWord}<br>
-                                Odia: ${r.odiaWord}<br>
-                                Odia Spelling: ${r.odiaSpelling}<br>
-                                Odia Meaning: ${r.odiaMeaning}<br>
-                                Hindi: ${r.hindiWord}
-                            </li>`;
-                    });
-                    resultHtml += '</ul>';
+                            English: ${r.englishWord || 'N/A'}<br>
+                            Odia: ${r.odiaWord || 'N/A'}<br>
+                            Odia Spelling: ${r.odiaSpelling || 'N/A'}<br>
+                            Hindi: ${r.hindiWord || 'N/A'}<br>
+                            Odia Meaning: ${r.odiaMeaning || 'N/A'}
+                        `;
+                    }
                     suggestionsUl.innerHTML = '';
                     suggestionsSection.classList.remove('active');
-                } else {
-                    resultHtml += `No results found for <strong>${input}</strong>`;
+                    if (suggestionsTimer) {
+                        clearTimeout(suggestionsTimer);
+                        suggestionsTimer = null;
+                    }
+                    resultDiv.innerHTML = resultHtml;
+                    resultSection.classList.add('active');
+                    resultDiv.classList.add('active');
+                    saveWordButton.style.display = 'none';
+                    isSuggestionHiddenPermanently = (event?.key === 'Enter' || fromClick);
+                });
+            } else {
+                requestAnimationFrame(() => {
+                    resultDiv.innerHTML = `No results found for <strong>${input}</strong>`;
+                    resultSection.classList.add('active');
+                    resultDiv.classList.add('active');
                     saveWordButton.style.display = 'block';
-                    const suggestions = getSuggestions(input);
-                    suggestions.then(s => {
-                        if (s.length > 0) {
-                            suggestionsUl.innerHTML = s.map(word => 
-                                `<li onclick="selectWord('${word.replace(/'/g, "\\'")}')">${word}</li>`).join('');
-                            suggestionsSection.classList.add('active');
-                        } else {
-                            suggestionsUl.innerHTML = '';
-                            suggestionsSection.classList.remove('active');
-                        }
-                    });
-                }
-                resultDiv.innerHTML = resultHtml;
-                resultSection.classList.add('active');
-                resultDiv.classList.add('active');
-            });
+                    displaySuggestions(input);
+                });
+            }
         }
 
         async function selectWord(word) {
-            await handleInput(word);
+            const inputWord = document.getElementById('inputWord');
+            inputWord.value = word;
+            if (suggestionsTimer) {
+                clearTimeout(suggestionsTimer);
+                suggestionsTimer = null;
+            }
+            isSuggestionHiddenPermanently = true;
+            requestAnimationFrame(() => handleInput(word, false, true));
+        }
+
+        async function displaySuggestions(input) {
+            const suggestionsUl = document.getElementById('suggestions');
+            const suggestionsSection = document.getElementById('suggestionsSection');
+            const inputWord = document.getElementById('inputWord');
+
+            if (!input || input.length < 2 || isSuggestionHiddenPermanently) {
+                suggestionsUl.innerHTML = '';
+                suggestionsSection.classList.remove('active');
+                if (suggestionsTimer) {
+                    clearTimeout(suggestionsTimer);
+                    suggestionsTimer = null;
+                }
+                return;
+            }
+
+            const suggestions = await getSuggestions(input);
+            requestAnimationFrame(() => {
+                suggestionsUl.innerHTML = suggestions.map(word => 
+                    `<li onclick="selectWord('${word.replace(/'/g, "\\'")}')">${word}</li>`).join('');
+                suggestionsSection.classList.add('active');
+                inputWord.focus();
+                resetSuggestionsTimer();
+
+                suggestionsSection.removeEventListener('scroll', resetSuggestionsTimer);
+                suggestionsSection.addEventListener('scroll', resetSuggestionsTimer);
+            });
+        }
+
+        function resetSuggestionsTimer() {
+            const suggestionsSection = document.getElementById('suggestionsSection');
+            const suggestionsUl = document.getElementById('suggestions');
+            if (suggestionsTimer) {
+                clearTimeout(suggestionsTimer);
+            }
+            if (suggestionsSection.classList.contains('active')) {
+                suggestionsTimer = setTimeout(() => {
+                    suggestionsUl.innerHTML = '';
+                    suggestionsSection.classList.remove('active');
+                }, 3000);
+            }
+        }
+
+        async function handleCopy(e) {
+            const selectedText = window.getSelection().toString().trim();
+            if (selectedText) {
+                const inputWord = document.getElementById('inputWord');
+                inputWord.value = selectedText;
+                isSuggestionHiddenPermanently = false;
+                const isAlphabetic = /^[a-zA-Z\u0B00-\u0B7F\u0900-\u097F]+$/.test(selectedText);
+                if (!isAlphabetic || selectedText.length < 2) {
+                    requestAnimationFrame(() => {
+                        document.getElementById('suggestions').innerHTML = '';
+                        document.getElementById('suggestionsSection').classList.remove('active');
+                        document.getElementById('resultSection').classList.remove('active');
+                        document.getElementById('result').innerHTML = '';
+                        document.getElementById('saveWordButton').style.display = 'none';
+                        if (suggestionsTimer) {
+                            clearTimeout(suggestionsTimer);
+                            suggestionsTimer = null;
+                        }
+                    });
+                    return;
+                }
+                const results = await searchDictionary(selectedText);
+                if (results.length > 0) {
+                    handleInput(selectedText, true);
+                } else {
+                    setTimeout(() => displaySuggestions(selectedText), 50);
+                }
+            }
         }
 
         function initClipboardListener() {
             document.addEventListener('paste', async (e) => {
-                e.preventDefault();
                 const selectedText = e.clipboardData.getData('text').trim();
                 if (selectedText) {
                     const inputWord = document.getElementById('inputWord');
                     inputWord.value = selectedText;
-                    await handleInput(selectedText);
-                }
-            });
-
-            document.addEventListener('copy', async (e) => {
-                e.preventDefault();
-                const selectedText = window.getSelection().toString().trim();
-                if (selectedText) {
-                    e.clipboardData.setData('text/plain', selectedText);
-                    const inputWord = document.getElementById('inputWord');
-                    inputWord.value = selectedText;
-                    await handleInput(selectedText);
+                    isSuggestionHiddenPermanently = false;
+                    const isAlphabetic = /^[a-zA-Z\u0B00-\u0B7F\u0900-\u097F]+$/.test(selectedText);
+                    if (!isAlphabetic || selectedText.length < 2) {
+                        requestAnimationFrame(() => {
+                            document.getElementById('suggestions').innerHTML = '';
+                            document.getElementById('suggestionsSection').classList.remove('active');
+                            document.getElementById('resultSection').classList.remove('active');
+                            document.getElementById('result').innerHTML = '';
+                            document.getElementById('saveWordButton').style.display = 'none';
+                            if (suggestionsTimer) {
+                                clearTimeout(suggestionsTimer);
+                                suggestionsTimer = null;
+                            }
+                        });
+                        return;
+                    }
+                    const results = await searchDictionary(selectedText);
+                    if (results.length > 0) {
+                        handleInput(selectedText, true);
+                    } else {
+                        setTimeout(() => displaySuggestions(selectedText), 50);
+                    }
                 }
             });
         }
 
         function enableFunctions() {
-            // Add any additional listeners here if needed
+            document.getElementById('readerSection').addEventListener('copy', handleCopy);
         }
 
         function disableFunctions() {
-            // Remove any additional listeners here if needed
+            document.getElementById('readerSection').removeEventListener('copy', handleCopy);
         }
 
         function initTextContent() {
             const exampleEnglish = 'This is an example sentence.';
             const exampleOdia = 'ଏହା ଏକ ଉଦାହରଣ ବାକ୍ୟ।';
             const exampleHindi = 'यह एक उदाहरण वाक्य है।';
-            const text = `${exampleEnglish}\n\n${exampleOdia}\n\n${exampleHindi}\n\n`;
+            const text = `${exampleEnglish}\n${exampleOdia}\n${exampleHindi}\n\n`;
             allExtractedTextForExport = text;
             splitIntoPages(text);
             displayPage(currentPage);
@@ -971,71 +1078,43 @@
 
             for (let i = 0; i < paragraphs.length; i++) {
                 const paragraph = paragraphs[i];
-                if (charCount + paragraph.length <= maxCharsPerPage) {
-                    currentPageText += paragraph + '\n\n';
-                    charCount += paragraph.length + 2;
-                } else {
-                    if (currentPageText.trim()) pages.push(currentPageText);
-                    currentPageText = paragraph + '\n\n';
-                    charCount = paragraph.length + 2;
+                const sentences = paragraph.split(/(?<=\.)/);
+                
+                for (let sentence of sentences) {
+                    if (sentence.trim() === '') continue;
+                    if (charCount + sentence.length <= maxCharsPerPage) {
+                        currentPageText += sentence;
+                        charCount += sentence.length;
+                    } else {
+                        if (currentPageText.trim()) pages.push(currentPageText);
+                        currentPageText = sentence;
+                        charCount = sentence.length;
+                    }
                 }
+                currentPageText += '\n\n';
+                charCount += 2;
             }
             if (currentPageText.trim()) pages.push(currentPageText);
             if (pages.length === 0) pages.push('');
-        }
-
-        function adjustFontSize(textContent, text) {
-            const containerHeight = textContent.clientHeight;
-            const containerWidth = textContent.clientWidth;
-            let fontSize = parseFloat(getComputedStyle(textContent).fontSize);
-            textContent.style.fontSize = `${fontSize}px`;
-
-            const tempDiv = document.createElement('div');
-            tempDiv.style.position = 'absolute';
-            tempDiv.style.visibility = 'hidden';
-            tempDiv.style.whiteSpace = 'pre-wrap';
-            tempDiv.style.wordWrap = 'break-word';
-            tempDiv.style.width = `${containerWidth}px`;
-            tempDiv.style.lineHeight = getComputedStyle(textContent).lineHeight;
-            tempDiv.innerText = text;
-            document.body.appendChild(tempDiv);
-
-            while ((tempDiv.scrollHeight > containerHeight || tempDiv.scrollWidth > containerWidth) && fontSize > 8) {
-                fontSize -= 0.5;
-                tempDiv.style.fontSize = `${fontSize}px`;
-                textContent.style.fontSize = `${fontSize}px`;
-            }
-            while (tempDiv.scrollHeight < containerHeight * 0.8 && tempDiv.scrollWidth <= containerWidth && fontSize < 16) {
-                fontSize += 0.5;
-                tempDiv.style.fontSize = `${fontSize}px`;
-                textContent.style.fontSize = `${fontSize}px`;
-                if (tempDiv.scrollHeight > containerHeight || tempDiv.scrollWidth > containerWidth) {
-                    fontSize -= 0.5;
-                    textContent.style.fontSize = `${fontSize}px`;
-                    break;
-                }
-            }
-
-            document.body.removeChild(tempDiv);
         }
 
         function displayPage(pageIndex) {
             if (pageIndex < 0 || pageIndex >= pages.length) return;
             currentPage = pageIndex;
             const textContent = document.getElementById('textContent');
-            const pageText = pages[pageIndex] || 'No text available';
-            
-            textContent.innerHTML = `<div style="white-space: pre-wrap;">${pageText}</div>`;
+            textContent.innerHTML = pages[pageIndex];
             textContent.scrollTop = 0;
-            textContent.style.transform = `scale(1)`;
             document.getElementById('pageInput').value = pageIndex + 1;
             document.getElementById('pageDisplay').textContent = `Page ${pageIndex + 1} of ${pages.length}`;
             document.querySelector('.page-button[onclick="previousPage()"]').disabled = pageIndex === 0;
             document.querySelector('.page-button[onclick="nextPage()"]').disabled = pageIndex === pages.length - 1;
             document.getElementById('suggestions').innerHTML = '';
             document.getElementById('suggestionsSection').classList.remove('active');
-
-            adjustFontSize(textContent, pageText);
+            if (suggestionsTimer) {
+                clearTimeout(suggestionsTimer);
+                suggestionsTimer = null;
+            }
+            textContent.style.overflowY = 'auto';
         }
 
         function goToPage() {
@@ -1061,31 +1140,70 @@
 
         function initSuggestions() {
             const inputWord = document.getElementById('inputWord');
+            let lastInput = '';
 
-            const debouncedHandleInput = debounce(async (input) => {
-                await handleInput(input);
-            }, 300);
+            const debouncedDisplaySuggestions = debounce((input) => {
+                const isAlphabetic = /^[a-zA-Z\u0B00-\u0B7F\u0900-\u097F]+$/.test(input);
+                if (isAlphabetic && input.length >= 2) {
+                    displaySuggestions(input);
+                } else {
+                    requestAnimationFrame(() => {
+                        document.getElementById('suggestions').innerHTML = '';
+                        document.getElementById('suggestionsSection').classList.remove('active');
+                        document.getElementById('saveWordButton').style.display = 'none';
+                        if (suggestionsTimer) {
+                            clearTimeout(suggestionsTimer);
+                            suggestionsTimer = null;
+                        }
+                    });
+                }
+            }, 200);
 
             inputWord.addEventListener('input', () => {
                 const input = inputWord.value.trim();
+                const suggestionsSection = document.getElementById('suggestionsSection');
+                const resultSection = document.getElementById('resultSection');
+                const resultDiv = document.getElementById('result');
+                const saveWordButton = document.getElementById('saveWordButton');
+
+                const hasNonSpaceChange = input !== lastInput && /[^ ]/.test(input.slice(lastInput.length));
+                
+                if (hasNonSpaceChange) {
+                    isSuggestionHiddenPermanently = false;
+                }
+
+                lastInput = input;
+
                 requestAnimationFrame(() => {
+                    resultDiv.innerHTML = '';
+                    resultSection.classList.remove('active');
+                    saveWordButton.style.display = 'none';
                     document.getElementById('suggestions').innerHTML = '';
-                    document.getElementById('suggestionsSection').classList.remove('active');
-                    document.getElementById('resultSection').classList.remove('active');
-                    document.getElementById('result').innerHTML = '';
-                    document.getElementById('saveWordButton').style.display = 'none';
+                    suggestionsSection.classList.remove('active');
                     lastSearchResults = { englishWord: '', odiaWord: '', odiaSpelling: '', odiaMeaning: '', hindiWord: '', language: '' };
-                    debouncedHandleInput(input);
+                    if (suggestionsTimer) {
+                        clearTimeout(suggestionsTimer);
+                        suggestionsTimer = null;
+                    }
+                    debouncedDisplaySuggestions(input);
                 });
+            });
+            
+            inputWord.addEventListener('focusout', () => {
+                const input = inputWord.value.trim();
+                debouncedDisplaySuggestions(input);
             });
 
             inputWord.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') {
                     event.preventDefault();
-                    const input = inputWord.value.trim();
                     document.getElementById('suggestions').innerHTML = '';
                     document.getElementById('suggestionsSection').classList.remove('active');
-                    handleInput(input);
+                    if (suggestionsTimer) {
+                        clearTimeout(suggestionsTimer);
+                        suggestionsTimer = null;
+                    }
+                    handleInput(inputWord.value.trim());
                 }
             });
         }
@@ -1116,14 +1234,9 @@
                 const processingStatus = document.getElementById('processingStatus');
                 playPauseButton.textContent = '🗣️';
                 speakButton.textContent = '🔊';
-                const pageText = pages[currentPage];
-                const formattedText = pageText
-                    ? `<div style="white-space: pre-wrap;">${pageText}</div>`
-                    : 'No text available';
-                textContent.innerHTML = formattedText;
+                textContent.innerHTML = pages[currentPage] || '';
                 processingStatus.textContent = 'All audio stopped';
                 enableFunctions();
-                adjustFontSize(textContent, pageText || '');
             });
         }
 
@@ -1315,16 +1428,15 @@
                     }
 
                     requestAnimationFrame(() => {
-                        const formattedText = `<div style="white-space: pre-wrap;">${pages[currentPage].replace(
-                            sentence,
-                            `<span class="highlight" id="sentence-${currentSentenceIndex}">${sentence}</span>`
-                        )}</div>`;
-                        textContent.innerHTML = formattedText;
+                        textContent.innerHTML = pages[currentPage]
+                            .replace(
+                                sentences[currentSentenceIndex],
+                                `<span class="highlight" id="sentence-${currentSentenceIndex}">${sentences[currentSentenceIndex]}</span>`
+                            );
                         const currentSentenceSpan = document.getElementById(`sentence-${currentSentenceIndex}`);
                         if (currentSentenceSpan) {
                             currentSentenceSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }
-                        adjustFontSize(textContent, pages[currentPage]);
                     });
 
                     const lang = voiceLang || detectLanguage(sentence);
@@ -1370,13 +1482,9 @@
                     isPaused = false;
                     requestAnimationFrame(() => {
                         playPauseButton.textContent = '🗣️';
-                        const formattedText = pages[currentPage]
-                            ? `<div style="white-space: pre-wrap;">${pages[currentPage]}</div>`
-                            : 'No text available';
-                        textContent.innerHTML = formattedText;
+                        textContent.innerHTML = pages[currentPage];
                         processingStatus.textContent = 'Finished reading page';
                         enableFunctions();
-                        adjustFontSize(textContent, pages[currentPage] || '');
                     });
                 }
             }
@@ -1387,11 +1495,13 @@
         async function showEditForm() {
             const editForm = document.getElementById('editForm');
             const inputWord = document.getElementById('inputWord');
+            // Populate edit form with last search results
             document.getElementById('newEnglish').value = lastSearchResults.englishWord || '';
             document.getElementById('newOdia').value = lastSearchResults.odiaWord || inputWord.value.trim();
             document.getElementById('newOdiaSpelling').value = lastSearchResults.odiaSpelling || '';
             document.getElementById('newOdiaMeaning').value = lastSearchResults.odiaMeaning || '';
             document.getElementById('newHindi').value = lastSearchResults.hindiWord || '';
+            // Hide the dictionary input
             inputWord.style.display = 'none';
             editForm.style.display = 'block';
         }
@@ -1411,45 +1521,65 @@
                 return;
             }
 
-            try {
-                const odiaExists = dbOdia.exec(
-                    `SELECT odia FROM dictionary WHERE LOWER(odia) = LOWER(?)`,
-                    [normalizeOdiaText(odiaInput)]
-                )[0]?.values.length > 0;
+            const english = englishInput || `Word${Object.keys(englishOdiaDictionary).length + 1}`;
+            const odiaWord = odiaInput;
+            const odiaSpellingWord = odiaSpellingInput;
 
-                if (!odiaExists) {
-                    if (englishInput) {
-                        dbEnglishOdia.exec(
-                            `INSERT INTO dictionary (English, odia) VALUES (?, ?)`,
-                            [englishInput, odiaInput]
-                        );
-                    }
-                    dbOdia.exec(
-                        `INSERT INTO dictionary (odia, odia_spelling, odia_meaning) VALUES (?, ?, ?)`,
-                        [odiaInput, odiaSpellingInput, odiaMeaningInput]
-                    );
-                    if (englishInput && hindiInput) {
-                        dbEnglishHindi.exec(
-                            `INSERT INTO dictionary (English, hindi) VALUES (?, ?)`,
-                            [englishInput, hindiInput]
-                        );
-                    }
-
-                    processingStatus.textContent = 'Word added successfully.';
-                    inputWord.style.display = 'block';
-                    editForm.style.display = 'none';
-                    inputWord.value = odiaInput;
-                    handleInput(odiaInput);
-                } else {
-                    processingStatus.textContent = 'Word already exists in dictionary.';
-                    inputWord.style.display = 'block';
-                    editForm.style.display = 'none';
-                    inputWord.value = odiaInput;
-                    handleInput(odiaInput);
+            if (!(odiaWord.toLowerCase() in odiaDictionary)) {
+                if (english) {
+                    englishOdiaDictionary[english.toLowerCase()] = { english, odia: odiaInput };
+                    englishOdiaDictionary[`${english.toLowerCase()} xyz`] = { english, odia: odiaInput };
                 }
-            } catch (error) {
-                console.error('Error saving new word:', error);
-                processingStatus.textContent = 'Error saving word.';
+                if (odiaWord) {
+                    odiaDictionary[odiaWord.toLowerCase()] = { odia: odiaInput, odia_spelling: odiaSpellingInput, odia_meaning: odiaMeaningInput };
+                    odiaDictionary[`${odiaWord.toLowerCase()} ଟିଏ`] = { odia: odiaInput, odia_spelling: odiaSpellingInput, odia_meaning: odiaMeaningInput };
+                }
+                if (odiaSpellingWord) {
+                    odiaDictionary[odiaSpellingWord.toLowerCase()] = { odia: odiaInput, odia_spelling: odiaSpellingInput, odia_meaning: odiaMeaningInput };
+                    odiaDictionary[`${odiaSpellingWord.toLowerCase()} tie`] = { odia: odiaInput, odia_spelling: odiaSpellingInput, odia_meaning: odiaMeaningInput };
+                }
+                if (english && hindiInput) {
+                    englishHindiDictionary[english.toLowerCase()] = { english, hindi: hindiInput };
+                    englishHindiDictionary[`${english.toLowerCase()} xyz`] = { english, hindi: hindiInput };
+                }
+                if (hindiInput) {
+                    englishHindiDictionary[hindiInput.toLowerCase()] = { english, hindi: hindiInput };
+                    englishHindiDictionary[`${hindiInput.toLowerCase()} xyz`] = { english, hindi: hindiInput };
+                }
+
+                await saveToIndexedDB('englishOdia', JSON.stringify(englishOdiaDictionary));
+                await saveToIndexedDB('odia', JSON.stringify(odiaDictionary));
+                await saveToIndexedDB('englishHindi', JSON.stringify(englishHindiDictionary));
+
+                dictionaryIndex = new Map();
+                Object.entries(englishOdiaDictionary).forEach(([key, value]) => {
+                    dictionaryIndex.set(key, { dict: 'englishOdia', type: 'english', value: value.english });
+                    dictionaryIndex.set(key + '_odia', { dict: 'englishOdia', type: 'odia', value: value.odia });
+                });
+                Object.entries(odiaDictionary).forEach(([key, value]) => {
+                    dictionaryIndex.set(key, { dict: 'odia', type: 'odia', value: value.odia });
+                    dictionaryIndex.set(key + '_spelling', { dict: 'odia', type: 'odia_spelling', value: value.odia_spelling });
+                });
+                Object.entries(englishHindiDictionary).forEach(([key, value]) => {
+                    dictionaryIndex.set(key, { dict: 'englishHindi', type: 'english', value: value.english });
+                    dictionaryIndex.set(key + '_hindi', { dict: 'englishHindi', type: 'hindi', value: value.hindi });
+                });
+
+                processingStatus.textContent = 'Word added and saved permanently to IndexedDB.';
+                // Show the dictionary input again
+                inputWord.style.display = 'block';
+                editForm.style.display = 'none';
+                // Update input with the saved word and display result
+                inputWord.value = odiaInput;
+                handleInput(odiaInput, false, true);
+            } else {
+                processingStatus.textContent = 'Word already exists in dictionary.';
+                // Show the dictionary input again even if the word already exists
+                inputWord.style.display = 'block';
+                editForm.style.display = 'none';
+                // Update input with the saved word and display result
+                inputWord.value = odiaInput;
+                handleInput(odiaInput, false, true);
             }
         }
 
@@ -1470,12 +1600,7 @@
                 return;
             }
             originalFileName = files[0].name;
-            if (files[0].type === 'application/pdf') {
-                const text = await extractTextFromPdf(files[0], Array.from(document.querySelectorAll('input[name="language"]:checked')).map(checkbox => checkbox.value));
-                allExtractedTextForExport = text;
-                splitIntoPages(text);
-                currentPage = 0;
-                displayPage(currentPage);
+            if (files[0].type === 'application/pdf' || files[0].type.startsWith('image/')) {
                 await updateOCRButton();
             } else if (files[0].type === 'text/plain') {
                 const reader = new FileReader();
@@ -1488,8 +1613,6 @@
                     updateOCRButton();
                 };
                 reader.readAsText(files[0]);
-            } else if (files[0].type.startsWith('image/')) {
-                await updateOCRButton();
             }
         }
 
@@ -1516,6 +1639,10 @@
             allExtractedTextForExport = '';
             textContent.textContent = '';
             document.getElementById('suggestions').innerHTML = '';
+            if (suggestionsTimer) {
+                clearTimeout(suggestionsTimer);
+                suggestionsTimer = null;
+            }
 
             await cacheTesseractResources();
 
@@ -1530,12 +1657,12 @@
                     let text = '';
                     if (file.type === 'application/pdf') {
                         text = await extractTextFromPdf(file, selectedLanguages);
-                        allExtractedTextForExport += text + '\n\n';
-                        textContent.textContent += text + '\n\n';
+                        allExtractedTextForExport += text + '\n';
+                        textContent.textContent += text + '\n';
                     } else if (file.type.startsWith('image/')) {
                         text = await extractTextFromImage(file, selectedLanguages);
-                        allExtractedTextForExport += text + '\n\n';
-                        textContent.textContent += text + '\n\n';
+                        allExtractedTextForExport += text + '\n';
+                        textContent.textContent += text + '\n';
                     } else {
                         processingStatus.textContent = `Skipping unsupported file type: ${fileNameWithoutExtension}`;
                         continue;
@@ -1561,17 +1688,35 @@
             const fileNameWithoutExtension = file.name.split('.').slice(0, -1).join('.');
             const processingStatus = document.getElementById('processingStatus');
 
+            const charWhitelist = languages.includes('eng') ? 'a-zA-Z0-9' : '' +
+                                  languages.includes('hin') ? '\u0900-\u097F' : '' +
+                                  languages.includes('ori') ? '\u0B00-\u0B7F' : '';
+
             for (let i = 1; i <= pdf.numPages; i++) {
                 processingStatus.textContent = `Processing PDF page ${i} of ${pdf.numPages} for ${file.name}...`;
                 const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                let pageText = '';
+                const viewport = page.getViewport({ scale: 2 });
+                const canvas = document.createElement('canvas');
+                const canvasContext = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
 
-                textContent.items.forEach(item => {
-                    pageText += item.str + (item.hasEOL ? '\n' : ' ');
-                });
+                await page.render({ canvasContext, viewport }).promise;
 
-                currentPdfText += pageText + '\n\n';
+                const { data: { text } } = await Tesseract.recognize(
+                    canvas,
+                    languages.join('+'),
+                    {
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                processingStatus.textContent = `OCR on ${file.name} (page ${i}): ${Math.round(m.progress * 100)}%...`;
+                            }
+                        },
+                        tessedit_char_whitelist: charWhitelist,
+                        tessedit_pageseg_mode: '6'
+                    }
+                );
+                currentPdfText += text + '\n';
             }
             return currentPdfText;
         }
@@ -1598,6 +1743,19 @@
             return text;
         }
 
+        async function getCachedOCRResult(fileName, language) {
+            if ('caches' in window) {
+                const cache = await caches.open('ocr-cache');
+                const cacheKey = `${fileName}-${language}`;
+                const cachedResponse = await cache.match(cacheKey);
+                if (cachedResponse) {
+                    const data = await cachedResponse.json();
+                    return data.text;
+                }
+            }
+            return null;
+        }
+
         function exportText() {
             if (!allExtractedTextForExport.trim()) {
                 document.getElementById('processingStatus').textContent = 'No text to export. Please process documents or upload text first.';
@@ -1615,27 +1773,6 @@
             document.getElementById('processingStatus').textContent = 'OCR text exported successfully!';
         }
 
-        function shareText() {
-            const processingStatus = document.getElementById('processingStatus');
-            if (!allExtractedTextForExport.trim()) {
-                processingStatus.textContent = 'No text to share. Please process documents or upload text first.';
-                return;
-            }
-            if (navigator.share) {
-                navigator.share({
-                    title: 'Extracted Text',
-                    text: allExtractedTextForExport.slice(0, 1000), // Limit for sharing
-                    url: window.location.href
-                }).then(() => {
-                    processingStatus.textContent = 'Text shared successfully!';
-                }).catch(err => {
-                    console.error('Share failed:', err);
-                    processingStatus.textContent = 'Failed to share text.';
-                });
-            } else {
-                processingStatus.textContent = 'Sharing not supported on this device.';
-            }
-        }
 
         if ('serviceWorker' in window) {
             window.addEventListener('load', () => {
@@ -1651,10 +1788,9 @@
                         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
                         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
                         'https://unpkg.com/pako@2.1.0/dist/pako.min.js',
-                        'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.min.js',
-                        'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_odia.db.gz',
-                        'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/odia_meaning.db.gz',
-                        'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_hindi.db.gz'
+                        'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_odia.csv.gz',
+                        'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/odia_meaning.csv.gz',
+                        'https://raw.githubusercontent.com/abhayattcc/odia-dictionary-by-abhayattcc/refs/heads/main/english_hindi.csv.gz'
                     ];
 
                     self.addEventListener('install', event => {
@@ -1682,8 +1818,7 @@
                                     });
                                     return networkResponse;
                                 }).catch(() => {
-                                    console.log('Service Worker: Fetch failed; returning offline page');
-                                    return caches.match('/offline.html');
+                                    return caches.match(event.request);
                                 });
                             })
                         );
@@ -1695,8 +1830,7 @@
                             caches.keys().then(cacheNames => {
                                 return Promise.all(
                                     cacheNames.map(cacheName => {
-                                        if (!cacheWhitelist.includes(cacheName)) {
-                                            console.log('Service Worker: Deleting old cache', cacheName);
+                                        if (cacheWhitelist.indexOf(cacheName) === -1) {
                                             return caches.delete(cacheName);
                                         }
                                     })
@@ -1707,17 +1841,28 @@
                 `;
 
                 const blob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
-                const url = URL.createObjectURL(blob);
-                navigator.serviceWorker.register(url).then(reg => {
-                    console.log('Service Worker registered with scope:', reg.scope);
-                }).catch(err => {
-                    console.error('Service Worker registration failed:', err);
-                });
+                const blobUrl = URL.createObjectURL(blob);
+                navigator.serviceWorker.register(blobUrl)
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                        startApp();
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                        startApp();
+                    });
             });
+        } else {
+            startApp();
         }
 
+        document.getElementById('readerSection').addEventListener('copy', handleCopy);
+        if (!('speechSynthesis' in window)) {
+            document.getElementById('result').innerHTML = 'Text-to-speech not supported';
+            document.getElementById('resultSection').classList.add('active');
+            document.getElementById('saveWordButton').style.display = 'none';
+        }
         document.getElementById('textFile').addEventListener('change', loadTextFile);
-        startApp();
     </script>
 </body>
 </html>
